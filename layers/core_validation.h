@@ -601,6 +601,9 @@ class FENCE_NODE : public BASE_NODE {
     FENCE_NODE() : queue(NULL), needsSignaled(VK_FALSE){};
 };
 
+// Forward reference
+struct GLOBAL_CB_NODE;
+
 class SEMAPHORE_NODE : public BASE_NODE {
   public:
     using BASE_NODE::in_use;
@@ -608,7 +611,7 @@ class SEMAPHORE_NODE : public BASE_NODE {
     SemaphoreState state;
     VkQueue queue;
     // Track command buffers linked by semaphores
-    vector<VkCommandBuffer> linkedCmdBuffers;
+    std::vector<GLOBAL_CB_NODE *> linkedCmdBuffers;
 };
 
 class EVENT_NODE : public BASE_NODE {

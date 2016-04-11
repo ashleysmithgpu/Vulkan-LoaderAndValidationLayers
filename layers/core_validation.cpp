@@ -4864,8 +4864,7 @@ static void decrementResources(layer_data *my_data, VkCommandBuffer cmdBuffer) {
         auto semaphoreNode = my_data->semaphoreMap.find(semaphore);
         if (semaphoreNode != my_data->semaphoreMap.end()) {
             // Each CB in semaphore's list may have reference to this semaphore
-            for (auto cb : semaphoreNode->second.linkedCmdBuffers) {
-                GLOBAL_CB_NODE *refCB = getCBNode(my_data, cb);
+            for (auto refCB : semaphoreNode->second.linkedCmdBuffers) {
                 for (auto semaphoreRef : refCB->semaphores) {
                     auto semaphoreRefNode = my_data->semaphoreMap.find(semaphoreRef);
                     if (semaphoreRefNode != my_data->semaphoreMap.end()) {
@@ -5236,7 +5235,7 @@ vkQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits,
             // For each signal/wait semaphore, add ref to this cmdbuffer's list and vice-versa
             for (auto semaphore : semaphoreList) {
                 pCBNode->semaphores.push_back(semaphore);
-                dev_data->semaphoreMap[semaphore].linkedCmdBuffers.push_back(submit->pCommandBuffers[i]);
+                dev_data->semaphoreMap[semaphore].linkedCmdBuffers.push_back(pCBNode);
             }
             pCBNode->submitCount++;
             skipCall |= validatePrimaryCommandBufferState(dev_data, pCBNode);
@@ -5405,38 +5404,41 @@ static bool cleanInFlightCmdBuffer(layer_data *my_data, VkCommandBuffer cmdBuffe
     }
     return skip_call;
 }
-// Remove given cmd_buffer from the global inFlight set.
-//  Also, if given queue is valid, then remove the cmd_buffer from that queues
-//  inFlightCmdBuffer set. Finally, check all other queues and if given cmd_buffer
-//  is still in flight on another queue, add it back into the global set.
-// Note: This function assumes that the global lock is held by the calling
-// thread.
+
+// If given queue is valid, remove the cmd_buffer from that queues inFlightCmdBuffer set. Finally, check all other
+// queues and if given cmd_buffer is not in flight on any other queue, Remove given cmd_buffer and all linked
+// cmd_buffers from the global inFlight set.
+// Note: This function assumes that the global lock is held by the calling thread.
 static inline void removeInFlightCmdBuffer(layer_data *dev_data, VkCommandBuffer cmd_buffer, VkQueue queue) {
-    // Pull it off of global list initially, but if we find it in any other queue list, add it back in
-    dev_data->globalInFlightCmdBuffers.erase(cmd_buffer);
-    if (dev_data->queueMap.find(queue) != dev_data->queueMap.end()) {
+    bool notFoundInAnyQueue = TRUE;
+    if (notFoundInAnyQueue && (dev_data->queueMap.find(queue) != dev_data->queueMap.end())) {
         dev_data->queueMap[queue].inFlightCmdBuffers.erase(cmd_buffer);
         for (auto q : dev_data->queues) {
             if ((q != queue) &&
                 (dev_data->queueMap[q].inFlightCmdBuffers.find(cmd_buffer) != dev_data->queueMap[q].inFlightCmdBuffers.end())) {
-                dev_data->globalInFlightCmdBuffers.insert(cmd_buffer);
-                return;
+                notFoundInAnyQueue = FALSE;
+                continue;
             }
         }
     }
-    // If cmdbuffer was removed from inFlight set, remove linked command buffers also
-    GLOBAL_CB_NODE *pCb = dev_data->commandBufferMap[cmd_buffer];
-    if (pCb) {
-        for (auto semaphore : pCb->semaphores) {
-            auto semaphoreNode = dev_data->semaphoreMap.find(semaphore);
-            if (semaphoreNode != dev_data->semaphoreMap.end()) {
-                for (auto cb : semaphoreNode->second.linkedCmdBuffers) {
-                    dev_data->globalInFlightCmdBuffers.erase(cb);
+    if (notFoundInAnyQueue) {
+        // Remove specified command buffer
+        dev_data->globalInFlightCmdBuffers.erase(cmd_buffer);
+        // And remove linked command buffers also
+        GLOBAL_CB_NODE *pCb = dev_data->commandBufferMap[cmd_buffer];
+        if (pCb) {
+            for (auto semaphore : pCb->semaphores) {
+                auto semaphoreNode = dev_data->semaphoreMap.find(semaphore);
+                if (semaphoreNode != dev_data->semaphoreMap.end()) {
+                    for (auto pCbNode : semaphoreNode->second.linkedCmdBuffers) {
+                        dev_data->globalInFlightCmdBuffers.erase(pCbNode->commandBuffer);
+                    }
                 }
             }
         }
     }
 }
+
 #if MTMERGESOURCE
 static inline bool verifyFenceStatus(VkDevice device, VkFence fence, const char *apiCall) {
     layer_data *my_data = get_my_data_ptr(get_dispatch_key(device), layer_data_map);
