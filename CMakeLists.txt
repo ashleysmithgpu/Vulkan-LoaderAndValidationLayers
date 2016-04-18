@@ -76,10 +76,16 @@ if(NOT WIN32)
     set (BINDATA_DIR Bin)
     set (LIBSOURCE_DIR Lib)
 else()
+    option(DISABLE_BUILD_PATH_DECORATION "Disable the decoration of the gslang and SPIRV-Tools build path with MSVC build type info" OFF)
+    option(DISABLE_BUILDTGT_DIR_DECORATION "Disable the decoration of the gslang and SPIRV-Tools build path with target info" OFF)
     # For Windows, since 32-bit and 64-bit items can co-exist, we build each in its own build directory.
     # 32-bit target data goes in build32, and 64-bit target data goes into build.  So, include/link the
     # appropriate data at build time.
-    if (CMAKE_CL_64)
+    if (DISABLE_BUILDTGT_DIR_DECORATION)
+        set (BUILDTGT_DIR "")
+        set (BINDATA_DIR "")
+        set (LIBSOURCE_DIR "")
+    elseif (CMAKE_CL_64)
         set (BUILDTGT_DIR build)
         set (BINDATA_DIR Bin)
         set (LIBSOURCE_DIR Lib)
@@ -95,28 +101,89 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_LAYERS "Build layers" ON)
 option(BUILD_DEMOS "Build demos" ON)
 option(BUILD_VKJSON "Build vkjson" ON)
+option(CUSTOM_GLSLANG_BIN_PATH "Use the user defined GLSLANG_BINARY_PATH" OFF)
+option(CUSTOM_SPIRV_TOOLS_BIN_PATH "Use the user defined SPRIV-TOOLS_BINARY_PATH" OFF)
+
+#Choose a natural default path
+set(GLSLANG_BINARY_PATH "${CMAKE_BINARY_DIR}/../glslang" CACHE STRING "User defined path to the glslang binaries for this project")
+
+#Choose a natural default path
+set(SPIRV_TOOLS_BINARY_PATH "${CMAKE_BINARY_DIR}/../SPIRV-Tools" CACHE STRING "User defined path to the SPIRV-Tools binaries for this project")
 
 find_program(GLSLANG_VALIDATOR NAMES glslangValidator
-             HINTS "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/install/bin"
-                   "${PROJECT_SOURCE_DIR}/../${BINDATA_DIR}" )
+    HINTS "${GLSLANG_BINARY_PATH}/StandAlone"
+    "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/install/bin"
+    "${CMAKE_BINARY_DIR}/../glslang/install/bin"
+    "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/install/bin"
+    "${PROJECT_SOURCE_DIR}/../${BINDATA_DIR}")
 
 find_path(GLSLANG_SPIRV_INCLUDE_DIR SPIRV/spirv.hpp HINTS "${CMAKE_SOURCE_DIR}/../glslang" DOC "Path to SPIRV/spirv.hpp")
 find_path(SPIRV_TOOLS_INCLUDE_DIR spirv-tools/libspirv.h HINTS "${CMAKE_SOURCE_DIR}/../spirv-tools/include"
+                                                               "${CMAKE_SOURCE_DIR}/../SPIRV-Tools/include"
                                                                "${CMAKE_SOURCE_DIR}/../source/spirv-tools/include"
                                                                "${CMAKE_SOURCE_DIR}/../spirv-tools/external/include"
+                                                               "${CMAKE_SOURCE_DIR}/../SPIRV-Tools/external/include"
                                                                "${CMAKE_SOURCE_DIR}/../source/spirv-tools/external/include"
-                                                         DOC "Path to spirv-tools/libspirv.h")
+                                                               DOC "Path to spirv-tools/libspirv.h")
 
 if (WIN32)
-    set (GLSLANG_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang/Release"
-                             "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang/OSDependent/Windows/Release"
+    if(DISABLE_BUILD_PATH_DECORATION)
+        if(CUSTOM_GLSLANG_BIN_PATH)
+            set (GLSLANG_SEARCH_PATH "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/glslang"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/glslang/OSDependent/Windows"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/hlsl"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/OGLCompilersDLL"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/SPIRV" )
+        else()
+            set (GLSLANG_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang/OSDependent/Windows"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/hlsl"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/OGLCompilersDLL"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/SPIRV" )
+        endif()
+        if(CUSTOM_SPIRV_TOOLS_BIN_PATH)
+            set (SPIRV_TOOLS_SEARCH_PATH "${SPIRV_TOOLS_BINARY_PATH}/${BUILDTGT_DIR}/source")
+        else()
+            set (SPIRV_TOOLS_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../spirv-tools/${BUILDTGT_DIR}/source")
+        endif()
+    else()
+        if(CUSTOM_GLSLANG_BIN_PATH)
+            set (GLSLANG_SEARCH_PATH "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/glslang/Release"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/glslang/OSDependent/Windows/Release"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/hlsl/Release"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/OGLCompilersDLL/Release"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/SPIRV/Release" )
+        else()
+            set (GLSLANG_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang/Release"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang/OSDependent/Windows/Release"
                              "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/hlsl/Release"
-                             "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/OGLCompilersDLL/Release"
-                             "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/SPIRV/Release" )
-    set (SPIRV_TOOLS_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../spirv-tools/${BUILDTGT_DIR}/source/Release")
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/OGLCompilersDLL/Release"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/SPIRV/Release" )
+        endif()
+        if(CUSTOM_SPIRV_TOOLS_BIN_PATH)
+            set (SPIRV_TOOLS_SEARCH_PATH "${SPIRV_TOOLS_BINARY_PATH}/${BUILDTGT_DIR}/source/Release")
+        else()
+            set (SPIRV_TOOLS_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../spirv-tools/${BUILDTGT_DIR}/source/Release")
+        endif()
+    endif()
 else()
-    set (GLSLANG_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../glslang/build/install/lib" "${CMAKE_SOURCE_DIR}/../x86_64/lib/glslang" )
-    set (SPIRV_TOOLS_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../spirv-tools/build/source" "${CMAKE_SOURCE_DIR}/../x86_64/lib/spirv-tools" )
+    #non windows
+    if(CUSTOM_GLSLANG_BIN_PATH)
+        set (GLSLANG_SEARCH_PATH "${GLSLANG_BINARY_PATH}/install/lib"
+            "${GLSLANG_BINARY_PATH}/glslang"
+            "${GLSLANG_BINARY_PATH}/glslang/OSDependent/Unix"
+            "${GLSLANG_BINARY_PATH}/OGLCompilersDLL"
+            "${GLSLANG_BINARY_PATH}/SPIRV"
+            "${GLSLANG_BINARY_PATH}/hlsl"
+            "${GLSLANG_BINARY_PATH}/StandAlone")
+    else()
+        set (GLSLANG_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../glslang/build/install/lib" "${CMAKE_SOURCE_DIR}/../x86_64/lib/glslang" )
+    endif()
+    if(CUSTOM_SPIRV_TOOLS_BIN_PATH)
+        set (SPIRV_TOOLS_SEARCH_PATH "${SPIRV_TOOLS_BINARY_PATH}/source" )
+    else()
+        set (SPIRV_TOOLS_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../spirv-tools/build/source" "${CMAKE_SOURCE_DIR}/../x86_64/lib/spirv-tools" )
+    endif()
 endif()
 
 find_library(GLSLANG_LIB NAMES glslang
@@ -139,12 +206,45 @@ find_library(SPIRV_TOOLS_LIB NAMES SPIRV-Tools
 
 # On Windows, we must pair Debug and Release appropriately
 if (WIN32)
-    set (GLSLANG_DEBUG_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang/Debug"
-                                   "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang/OSDependent/Windows/Debug"
+    if (DISABLE_BUILD_PATH_DECORATION)
+        if(CUSTOM_GLSLANG_BIN_PATH)
+            set (GLSLANG_DEBUG_SEARCH_PATH "${GLSLANG_BINARY_PATH}/glslang"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/glslang/OSDependent/Windows"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/hlsl"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/OGLCompilersDLL"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/SPIRV")
+        else()
+            set (GLSLANG_DEBUG_SEARCH_PATH "${CMAKE_BINARY_DIR}/../glslang/glslang"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang/OSDependent/Windows"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/hlsl"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/OGLCompilersDLL"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/SPIRV")
+        endif()
+        if(CUSTOM_SPIRV_TOOLS_BIN_PATH)
+            set (SPIRV_TOOLS_DEBUG_SEARCH_PATH "${SPIRV_TOOLS_BINARY_PATH}/source")
+        else()
+            set (SPIRV_TOOLS_DEBUG_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../spirv-tools/source")
+        endif()
+    else()
+        if(CUSTOM_GLSLANG_BIN_PATH)
+            set (GLSLANG_DEBUG_SEARCH_PATH "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/glslang/Debug"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/glslang/OSDependent/Windows/Debug"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/hlsl/Debug"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/OGLCompilersDLL/Debug"
+                "${GLSLANG_BINARY_PATH}/${BUILDTGT_DIR}/SPIRV/Debug")
+        else()
+            set (GLSLANG_DEBUG_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang/Debug"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/glslang/OSDependent/Windows/Debug"
                                    "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/hlsl/Debug"
-                                   "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/OGLCompilersDLL/Debug"
-                                   "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/SPIRV/Debug")
-    set (SPIRV_TOOLS_DEBUG_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../spirv-tools/${BUILDTGT_DIR}/source/Debug")
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/OGLCompilersDLL/Debug"
+                "${CMAKE_SOURCE_DIR}/../glslang/${BUILDTGT_DIR}/SPIRV/Debug")
+        endif()
+        if(CUSTOM_SPIRV_TOOLS_BIN_PATH)
+            set (SPIRV_TOOLS_DEBUG_SEARCH_PATH "${SPIRV_TOOLS_BINARY_PATH}${BUILDTGT_DIR}/source/Debug")
+        else()
+            set (SPIRV_TOOLS_DEBUG_SEARCH_PATH "${CMAKE_SOURCE_DIR}/../spirv-tools/${BUILDTGT_DIR}/source/Debug")
+        endif()
+    endif()
 
     add_library(glslang     STATIC IMPORTED)
     add_library(OGLCompiler STATIC IMPORTED)
