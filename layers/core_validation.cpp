@@ -5485,7 +5485,6 @@ vkWaitForFences(VkDevice device, uint32_t fenceCount, const VkFence *pFences, Vk
                 }
             }
             decrementResources(dev_data, fenceCount, pFences);
-
             // Clean up fence's cmdBuffer map
             for (uint32_t i = 0; i < fenceCount; ++i) {
                 dev_data->fenceMap[pFences[i]].cmdBuffers.clear();
@@ -5552,15 +5551,25 @@ VK_LAYER_EXPORT VKAPI_ATTR void VKAPI_CALL vkGetDeviceQueue(VkDevice device, uin
 
 VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkQueueWaitIdle(VkQueue queue) {
     layer_data *dev_data = get_my_data_ptr(get_dispatch_key(queue), layer_data_map);
-    decrementResources(dev_data, queue);
     bool skip_call = false;
     std::unique_lock<std::mutex> lock(global_lock);
+
     // Iterate over local set since we erase set members as we go in for loop
     auto local_cb_set = dev_data->queueMap[queue].inFlightCmdBuffers;
+    for (auto cmdBuffer : dev_data->queueMap[queue].untrackedCmdBuffers) {
+        local_cb_set.insert(cmdBuffer);
+        for (auto cbSemaphore : dev_data->commandBufferMap[cmdBuffer]->semaphores) {
+            dev_data->queueMap[dev_data->semaphoreMap[cbSemaphore].queue].inFlightCmdBuffers.erase(cmdBuffer);
+        }
+    }
+
+    decrementResources(dev_data, queue);
+    // Iterate over local set since we erase set members as we go in for loop
     for (auto cmdBuffer : local_cb_set) {
         skip_call |= cleanInFlightCmdBuffer(dev_data, cmdBuffer);
         removeInFlightCmdBuffer(dev_data, cmdBuffer, queue, VK_NULL_HANDLE);
     }
+
     dev_data->queueMap[queue].inFlightCmdBuffers.clear();
     lock.unlock();
     if (skip_call)
