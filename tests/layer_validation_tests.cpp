@@ -33,9 +33,9 @@
 #include "glm/glm.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 
-#define MEM_TRACKER_TESTS 1
-#define OBJ_TRACKER_TESTS 1
-#define DRAW_STATE_TESTS 1
+#define MEM_TRACKER_TESTS 0
+#define OBJ_TRACKER_TESTS 0
+#define DRAW_STATE_TESTS 0
 #define THREADING_TESTS 1
 #define SHADER_CHECKER_TESTS 1
 #define DEVICE_LIMITS_TESTS 1
@@ -2433,14 +2433,15 @@ TEST_F(VkLayerTest, DescriptorSetNotUpdated) {
     vkDestroyDescriptorSetLayout(m_device->device(), ds_layout, NULL);
     vkDestroyDescriptorPool(m_device->device(), ds_pool, NULL);
 }
-
+#endif
+#if 1
 TEST_F(VkLayerTest, InvalidBufferViewObject) {
     // Create a single TEXEL_BUFFER descriptor and send it an invalid bufferView
     VkResult err;
 
     m_errorMonitor->SetDesiredFailureMsg(
         VK_DEBUG_REPORT_ERROR_BIT_EXT,
-        "Attempt to update descriptor with invalid bufferView ");
+        "Attempted write update to texel buffer descriptor with invalid buffer view");
 
     ASSERT_NO_FATAL_FAILURE(InitState());
     VkDescriptorPoolSize ds_type_count = {};
